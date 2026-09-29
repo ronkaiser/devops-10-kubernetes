@@ -52,6 +52,36 @@ curl --resolve dashboard.com:80:$(minikube ip) http://dashboard.com/
 
 For browser access, map `dashboard.com` to the Minikube IP in your local hosts file, then open `http://dashboard.com`.
 
+## Add TLS for `dashboard.com`
+
+TLS certificates are stored in a Kubernetes Secret in the same namespace as the Ingress. Create the Secret from an existing certificate and private key:
+
+```bash
+kubectl create secret tls dashboard-tls \
+  --cert=dashboard.com.crt \
+  --key=dashboard.com.key \
+  -n kubernetes-dashboard
+```
+
+Add this block under `spec:` in `dashboard-ingress.yaml` (alongside `rules:`):
+
+```yaml
+tls:
+  - hosts:
+      - dashboard.com
+    secretName: dashboard-tls
+```
+
+Then apply and verify it:
+
+```bash
+kubectl apply -f dashboard-ingress.yaml
+kubectl describe ingress dashboard-ingress -n kubernetes-dashboard
+curl -I --resolve dashboard.com:443:127.0.0.1 https://dashboard.com/
+```
+
+For local development, use a certificate trusted by your machine. A self-signed certificate enables HTTPS but produces a browser warning. In production, use cert-manager or your organization’s PKI to issue and renew certificates automatically.
+
 ## Production checklist
 
 - Run a supported, highly available Ingress controller; monitor its logs, metrics, and capacity.
