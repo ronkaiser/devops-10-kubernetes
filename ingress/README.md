@@ -13,6 +13,16 @@ client -> DNS -> Ingress controller -> Service -> Pods
 
 > Kubernetes recommends Gateway API for new capabilities; the Ingress API remains stable but is frozen.
 
+## Note: Gateway API
+
+[Gateway API](https://kubernetes.io/docs/concepts/services-networking/gateway/) is the modern, extensible successor to Ingress for advanced traffic routing. It separates responsibilities:
+
+- `GatewayClass` — controller and shared infrastructure configuration.
+- `Gateway` — a traffic entry point, such as a load balancer listener.
+- `HTTPRoute` — application-owned hostname, path, header, and weighted-routing rules.
+
+Use Gateway API when you need portable, expressive routing (for example, traffic splitting or header matching) without controller-specific annotations. It still requires a compatible Gateway controller. The `dashboard-ingress.yaml` example remains valid for the simpler Ingress pattern.
+
 ## This manifest
 
 `dashboard-ingress.yaml` routes `dashboard.com/` to the `kubernetes-dashboard` Service on port `80` in the `kubernetes-dashboard` namespace.
