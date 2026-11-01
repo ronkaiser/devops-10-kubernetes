@@ -1,0 +1,3 @@
+# Local kubeconfig files contain cluster credentials
+helm-demo/test-kubeconfig.yaml
+**/*kubeconfig*.yaml
