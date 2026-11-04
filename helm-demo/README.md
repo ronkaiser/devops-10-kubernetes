@@ -1,8 +1,34 @@
-# Helm command reference
+# Helm demo — MongoDB on a managed Kubernetes cluster
 
 Helm installs Kubernetes applications from **charts** (templates + default values). Each installation is a **release**; a values file customizes it. Helm runs through your current Kubernetes context. Helm 3 and 4 do not need Tiller.
 
-Source: [Nana's Helm lecture](https://techworld-with-nana.teachable.com/courses/1108792/lectures/28706437). The lecture required login when checked; these notes use the local demo files and official documentation.
+Lectures: [Helm basics](https://techworld-with-nana.teachable.com/courses/1108792/lectures/28706437) and [Helm Demo — Managed K8s cluster](https://techworld-with-nana.teachable.com/courses/1108792/lectures/28706435). The demo page was login-locked when checked on November 4, 2026; these instructions are aligned with the committed files, not a verified transcript of the video.
+
+## Your implementation (Git history)
+
+| Commit | What the documentation follows |
+| --- | --- |
+| `0f1cda4` | MongoDB replica set through Helm; Mongo Express Deployment/Service and Ingress through kubectl. Linode storage, `bitnamisecure/mongodb:latest`, metrics disabled. |
+| `1704090` | Ignore local kubeconfig YAML files; other Secret/values YAML files are not covered by those ignore patterns. |
+| `8379d67` | Ingress class changed from `nginx-ingress` to `nginx`; host set to `172-104-244-224.ip.linodeusercontent.com`. |
+
+These are confirmed repository choices; differences from the video cannot be verified while it is locked. The `helm-demo` namespace below is a suggested isolated namespace, not evidence of where you previously installed the release. For an existing deployment, find its namespace with `helm list -A` and use that namespace throughout instead of creating a second installation.
+
+## Connect to your managed cluster
+
+Run from this folder. If using the local kubeconfig, point this terminal at it without merging or changing your global configuration:
+
+```bash
+export KUBECONFIG="$PWD/test-kubeconfig.yaml"
+kubectl config current-context
+kubectl get nodes
+helm list -A
+kubectl get storageclass
+kubectl get ingressclass
+kubectl get svc -A --field-selector spec.type=LoadBalancer
+```
+
+Verify the target cluster before deploying. The committed values use `linode-block-storage`; retain it on LKE if available. A reachable Ingress controller that handles class `nginx` is also required; an Ingress manifest alone does not install one. Unlike the local Minikube workflow, a managed controller's cloud LoadBalancer normally provides external access without `minikube tunnel`.
 
 ## Discover and inspect a chart
 
@@ -59,7 +85,24 @@ kubectl port-forward -n helm-demo svc/mongo-express-service 8081:8081
 
 Open [http://localhost:8081](http://localhost:8081) while port-forward runs. The Mongo Express manifest assumes release name `mongodb`, Secret `mongodb` with key `mongodb-root-password`, and hostname `mongodb-0.mongodb-headless`. Verify these against your chart version. For resilient replica-set connections, configure all members and the replica-set name rather than relying on member 0 being primary.
 
-Optional Ingress: replace `YOUR_HOST_DNS_NAME` and verify `ingressClassName` using `kubectl get ingressclass`, then run `kubectl apply -n helm-demo -f helm-ingress.yaml`. Configure DNS/hosts and controller reachability as described in the neighboring Ingress lesson. Protect Mongo Express with authentication and TLS before exposing it.
+## Access through your Ingress
+
+`helm-ingress.yaml` already uses class `nginx` and host `172-104-244-224.ip.linodeusercontent.com` from commit `8379d67`. Verify that this hostname resolves to your current Ingress controller's external address; update it if the cloud address changes. Keep MongoDB and Mongo Express in the same namespace because the Secret and database hostname references are namespace-local.
+
+```bash
+kubectl apply -n helm-demo -f helm-ingress.yaml
+kubectl get ingress mongo-express -n helm-demo
+kubectl describe ingress mongo-express -n helm-demo
+kubectl get endpointslice -n helm-demo \
+  -l kubernetes.io/service-name=mongo-express-service
+curl -I http://172-104-244-224.ip.linodeusercontent.com
+
+# Isolate DNS problems: substitute the actual controller LoadBalancer IP.
+curl -I --resolve 172-104-244-224.ip.linodeusercontent.com:80:<controller-ip> \
+  http://172-104-244-224.ip.linodeusercontent.com
+```
+
+Open [the demo over HTTP](http://172-104-244-224.ip.linodeusercontent.com). The committed Ingress has no TLS configuration; forced HTTPS will not test the same route. A `401` may indicate Mongo Express web authentication; database root credentials and web login credentials are separate. A `404` suggests a host/class routing mismatch; a `503` commonly indicates no ready backend endpoints. If port-forward works but Ingress fails, check the controller, LoadBalancer address, hostname and firewall. Protect Mongo Express with authentication and TLS before exposing it at work.
 
 ## Inspect, troubleshoot, and roll back
 
